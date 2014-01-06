@@ -1,0 +1,11 @@
+{application, toy_flv_streaming,
+ [
+  {description, "Toy Project"},
+  {vsn, "0.0.1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
