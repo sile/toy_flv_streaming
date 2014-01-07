@@ -12,7 +12,7 @@ handle_data(<<"/play ",    Rest/binary>>, State) -> change_handler(tfs_handler_p
 handle_message(_Message, State) -> {?MODULE, State}.
 
 %% @doc 対象ストリームの名前の取得とPub/Subサーバの準備を行う
--spec ready_pubsub_server(boolean(), binary()) -> RemainBytes::binary().
+-spec ready_pubsub_server(boolean(), binary()) -> {pid(), binary()}.
 ready_pubsub_server(IsPlay, Bin) ->
     [StreamName, Rest] = binary:split(Bin, <<" ">>),                                   % ストリーム名を取得
     PubSubServer = tfs_pubsub_server:ensure_started(binary_to_atom(StreamName, utf8)), % Pub/Subサーバを起動
