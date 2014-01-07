@@ -4,3 +4,5 @@
 /doc/
 /ebin/
 .dialyzer.plt
+*.dump
+deps/

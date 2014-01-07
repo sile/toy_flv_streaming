@@ -25,7 +25,7 @@ accept_loop({ServerSocket, PubSubPid} = State) ->
             Pid = spawn(fun () ->
                                 ok = timer:sleep(1),
                                 ok = inet:setopts(ClientSocket, [{active, true}, {buffer, 32 * 1024}]),
-                                server_loop(ClientSocket, tfs_handler_default, tfs_handler_default:init(ClientSocket, PubSubPid), <<>>)
+                                server_loop(ClientSocket, tfs_handler_default, tfs_handler_default:init({ClientSocket, PubSubPid}), <<>>)
                         end),
             ok = gen_tcp:controlling_process(ClientSocket, Pid),
             accept_loop(State)

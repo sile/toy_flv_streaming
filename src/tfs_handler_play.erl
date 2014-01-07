@@ -1,8 +1,8 @@
 -module(tfs_handler_play).
 
--export([init/2, handle_data/2, handle_message/2]).
+-export([init/1, handle_data/2, handle_message/2]).
 
-init(ClientSocket, PubSubPid) ->
+init({ClientSocket, PubSubPid}) ->
     PubSubPid ! {subscribe, self()},
     ClientSocket.
 

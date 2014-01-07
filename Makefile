@@ -1,4 +1,5 @@
 APP=toy_flv_streaming
+NODE=$(APP)@localhost
 
 all: compile eunit                                                   
 
@@ -21,12 +22,12 @@ eunit:
 edoc:
 	@./rebar doc skip_deps=true
 
-start:
-	erl -sname $(APP)@localhost -pz ebin deps/*/ebin -eval 'erlang:display({start_app, $(APP), application:start($(APP))}).'
+start: compile
+	erl +K true -sname $(NODE) -pz ebin deps/*/ebin -eval 'erlang:display({start_app, $(APP), application:ensure_all_started($(APP))}).'
 
 .dialyzer.plt:
 	touch .dialyzer.plt
-	dialyzer --build_plt --plt .dialyzer.plt --apps erts kernel stdlib
+	dialyzer --build_plt --plt .dialyzer.plt --apps erts kernel stdlib inets
 
 dialyze: .dialyzer.plt
 	dialyzer --plt .dialyzer.plt -r ebin

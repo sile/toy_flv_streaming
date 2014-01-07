@@ -1,8 +1,8 @@
 -module(tfs_handler_publish).
 
--export([init/2, handle_data/2, handle_message/2]).
+-export([init/1, handle_data/2, handle_message/2]).
 
-init(_ClientSocket, PubSubPid) -> PubSubPid.
+init({_ClientSocket, PubSubPid}) -> PubSubPid.
 
 handle_data(<<FlvDataSize:32, 0:8, Timestamp:32, FlvData:FlvDataSize/binary, Rest/binary>>, PubSubPid) ->
     PubSubPid ! {video, Timestamp, FlvData},
