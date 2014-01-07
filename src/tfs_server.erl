@@ -1,46 +1,43 @@
-%% @doc FLVのストリーミング機能(publish/play)を提供するサーバ
+%% @doc FLV形式のvideo/audioデータのストリーミング機能(publish/play)を提供するサーバモジュール
 -module(tfs_server).
 
--export([start_link/1]).
+-export([start/1]).
+-export_type([state/0]).
+
+-type state() :: {gen_tcp:socket(), PubSubServer::(undefined | pid())}.
 
 %% @doc 指定のポートでストリーミングサーバを起動する
--spec start_link(inet:port_number()) -> {ok, pid()} | {error, Reason::term()}.
-start_link(Port) ->
-    case gen_tcp:listen(Port, [binary, {active, false}]) of
-        {error, Reason}    -> {error, Reason};
-        {ok, ServerSocket} ->
-            Pid = spawn_link(fun () -> accept_loop(ServerSocket) end),
-            ok = gen_tcp:controlling_process(ServerSocket, Pid),
-            {ok, Pid}
-    end.
+-spec start(inet:port_number()) -> no_return().
+start(Port) ->
+    {ok, ServerSocket} = gen_tcp:listen(Port, [binary, {active, false}]),  % listen
+    accept_loop(ServerSocket).
 
--spec accept_loop({gen_tcp:socket(), pid()}) -> no_return().
+%% @doc acceptをひたすら繰り返すループ
+-spec accept_loop(gen_tcp:socket()) -> no_return().
 accept_loop(ServerSocket) ->
-    case gen_tcp:accept(ServerSocket) of
-        {error, Reason}    -> exit(Reason);
-        {ok, ClientSocket} ->
-            Pid = spawn(fun () ->
-                                receive owner_delegated -> ok end,
-                                ok = inet:setopts(ClientSocket, [{active, true}, {buffer, 32 * 1024}]),
-                                server_loop(ClientSocket, tfs_handler_default, {ClientSocket, undefined}, <<>>)
-                        end),
-            ok = gen_tcp:controlling_process(ClientSocket, Pid),
-            Pid ! owner_delegated,
-            accept_loop(ServerSocket)
-    end.
+    {ok, ClientSocket} = gen_tcp:accept(ServerSocket), 
+    Worker = spawn(fun () ->  % accept後の実際の処理は別プロセスに任せる
+                           receive owner_delegated -> ok end,
+                           ok = inet:setopts(ClientSocket, [{active, true}, {buffer, 32 * 1024}]),
+                           server_loop(tfs_handler_default, {ClientSocket, undefined}, <<"">>)  % 最初のハンドラは tfs_handler_default
+                   end),
+    ok = gen_tcp:controlling_process(ClientSocket, Worker),
+    Worker ! owner_delegated,
+    accept_loop(ServerSocket).
 
--spec server_loop(gen_tcp:socket(), module(), term(), binary()) -> no_return().
-server_loop(ClientSocket, Handler, HandlerState, RemainData) ->
+%% @doc クライアントとやりとりを行うループ
+-spec server_loop(module(), state(), binary()) -> no_return().
+server_loop(Handler, {ClientSocket, _} = State, RemainData) ->
     receive
         {tcp_closed, _}        -> exit(normal);
         {tcp_error, _, Reason} -> exit(Reason);
-        {tcp, _, Data}         ->
-            {Handler2, HandlerState2, RemainData2} = Handler:handle_data(<<RemainData/binary, Data/binary>>, HandlerState),
-            server_loop(ClientSocket, Handler2, HandlerState2, RemainData2);
-        {send, Data} ->
+        {tcp, _, Data}         -> % クライアントからデータ受信
+            {Handler2, State2, RemainData2} = Handler:handle_data(<<RemainData/binary, Data/binary>>, State),
+            server_loop(Handler2, State2, RemainData2);
+        {send, Data} ->           % クライアントにデータ送信
             ok = gen_tcp:send(ClientSocket, Data),
-            server_loop(ClientSocket, Handler, HandlerState, RemainData);
-        Message ->
-            {Handler2, HandlerState2} = Handler:handle_message(Message, HandlerState),
-            server_loop(ClientSocket, Handler2, HandlerState2, RemainData)
+            server_loop(Handler, State, RemainData);
+        Message ->                % その他Erlangメッセージ (サーバの制御用メッセージ)
+            {Handler2, State2} = Handler:handle_message(Message, State),
+            server_loop(Handler2, State2, RemainData)
     end.
