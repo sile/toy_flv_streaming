@@ -1,17 +1,14 @@
 -module(tfs_handler_play).
 
--export([init/1, handle_data/2, handle_message/2]).
-
-init({ClientSocket, PubSubPid}) ->
-    PubSubPid ! {subscribe, self()},
-    ClientSocket.
+-export([handle_data/2, handle_message/2]).
 
 handle_data(_Ignore, State) ->
     {?MODULE, State, <<"">>}.
 
-handle_message({video, Timestamp, FlvData}, ClientSocket) ->
-    ok = gen_tcp:send(ClientSocket, <<(byte_size(FlvData)):32, 0:8, Timestamp:32, FlvData/binary>>),
-    {?MODULE, ClientSocket};
-handle_message({audio, Timestamp, FlvData}, ClientSocket) ->
-    ok = gen_tcp:send(ClientSocket, <<(byte_size(FlvData)):32, 1:8, Timestamp:32, FlvData/binary>>),
-    {?MODULE, ClientSocket}.
+handle_message(Message, {ClientSocket, _} = State) ->
+    Data = case Message of
+               {video, Timestamp, Video} -> <<0:8, Timestamp:32, (byte_size(Video)):32, Video/binary>>;
+               {audio, Timestamp, Audio} -> <<1:8, Timestamp:32, (byte_size(Audio)):32, Audio/binary>>
+           end,
+    ok = gen_tcp:send(ClientSocket, Data),
+    {?MODULE, State}.

@@ -1,24 +1,31 @@
 -module(tfs_pubsub_server).
 
--export([start_link/0]).
+-export([start/1]).
 
--spec start_link() -> pid().
-start_link() ->
-    spawn_link(fun () -> loop([]) end).
+-spec start(atom()) -> pid().
+start(StreamName) ->
+    case whereis(StreamName) of
+        undefined ->
+            Pid = spawn(fun () -> loop([]) end),
+            true = register(StreamName, Pid),
+            Pid;
+        Pid -> Pid
+    end.
 
 -spec loop([pid()]) -> no_return().
 loop(Subscribers) ->
     receive
-        {audio, Timestamp, FlvData} ->
-            ok = lists:foreach(fun (Subscriber) -> Subscriber ! {audio, Timestamp, FlvData} end, Subscribers),
-            loop(Subscribers);
-        {video, Timestamp, FlvData} ->
-            ok = lists:foreach(fun (Subscriber) -> Subscriber ! {video, Timestamp, FlvData} end, Subscribers),
-            loop(Subscribers);
-        {subscribe, Subscriber} ->
-            monitor(process, Subscriber),
-            loop([Subscriber | Subscribers]);
-        {'DOWN', _, _, Pid, _} ->
-            Subscribers2 = lists:delete(Pid, Subscribers),
-            loop(Subscribers2)
+        {audio, _, _} = Message -> notify(Message, Subscribers), loop(Subscribers);
+        {video, _, _} = Message -> notify(Message, Subscribers), loop(Subscribers);
+        {subscribe, Pid}        -> monitor(process, Pid),        loop(Subscribers ++ [Pid]);
+        {'DOWN', _, _, Pid, _}  ->                               loop(Subscribers -- [Pid])
+    after 1000 ->
+            case Subscribers of
+                [] -> exit(normal);
+                _  -> loop(Subscribers)
+            end        
     end.
+
+-spec notify(any(), [pid()]) -> ok.
+notify(Message, Subscribers) ->
+    lists:foreach(fun (Subscriber) -> Subscriber ! Message end, Subscribers).

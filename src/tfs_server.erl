@@ -9,26 +9,24 @@ start_link(Port) ->
     case gen_tcp:listen(Port, [binary, {active, false}]) of
         {error, Reason}    -> {error, Reason};
         {ok, ServerSocket} ->
-            Pid = spawn_link(fun () ->
-                                     PubSubPid = tfs_pubsub_server:start_link(),
-                                     accept_loop({ServerSocket, PubSubPid})
-                             end),
+            Pid = spawn_link(fun () -> accept_loop(ServerSocket) end),
             ok = gen_tcp:controlling_process(ServerSocket, Pid),
             {ok, Pid}
     end.
 
 -spec accept_loop({gen_tcp:socket(), pid()}) -> no_return().
-accept_loop({ServerSocket, PubSubPid} = State) ->
+accept_loop(ServerSocket) ->
     case gen_tcp:accept(ServerSocket) of
         {error, Reason}    -> exit(Reason);
         {ok, ClientSocket} ->
             Pid = spawn(fun () ->
-                                ok = timer:sleep(1),
+                                receive owner_delegated -> ok end,
                                 ok = inet:setopts(ClientSocket, [{active, true}, {buffer, 32 * 1024}]),
-                                server_loop(ClientSocket, tfs_handler_default, tfs_handler_default:init({ClientSocket, PubSubPid}), <<>>)
+                                server_loop(ClientSocket, tfs_handler_default, {ClientSocket, undefined}, <<>>)
                         end),
             ok = gen_tcp:controlling_process(ClientSocket, Pid),
-            accept_loop(State)
+            Pid ! owner_delegated,
+            accept_loop(ServerSocket)
     end.
 
 -spec server_loop(gen_tcp:socket(), module(), term(), binary()) -> no_return().
