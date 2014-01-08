@@ -16,11 +16,12 @@ start(Port) ->
 -spec accept_loop(gen_tcp:socket()) -> no_return().
 accept_loop(ServerSocket) ->
     {ok, ClientSocket} = gen_tcp:accept(ServerSocket), 
-    Worker = spawn(fun () ->  % accept後の実際の処理は別プロセスに任せる
-                           receive owner_delegated -> ok end,
-                           ok = inet:setopts(ClientSocket, [{active, true}, {buffer, 32 * 1024}]),
-                           server_loop(tfs_handler_default, {ClientSocket, undefined}, <<"">>)  % 最初のハンドラは tfs_handler_default
-                   end),
+    Worker =
+        spawn(fun () ->  % accept後の実際の処理は別プロセスに任せる
+                      receive owner_delegated -> ok end,
+                      ok = inet:setopts(ClientSocket, [{active, true}]),
+                      server_loop(tfs_handler_default, {ClientSocket, undefined}, <<"">>)  % 最初のハンドラは tfs_handler_default
+              end),
     ok = gen_tcp:controlling_process(ClientSocket, Worker),
     Worker ! owner_delegated,
     accept_loop(ServerSocket).

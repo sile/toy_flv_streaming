@@ -18,10 +18,10 @@ ensure_started(StreamName) ->
 -spec loop([pid()]) -> no_return().
 loop(Subscribers) ->
     receive
-        {audio, _, _} = Message -> notify(Message, Subscribers), loop(Subscribers);          % audioデータがpublishされた => subscriberに配信
-        {video, _, _} = Message -> notify(Message, Subscribers), loop(Subscribers);          % videoデータがpublishされた => subscriberに配信
-        {subscribe, Pid}        -> monitor(process, Pid),        loop(Subscribers ++ [Pid]); % 新規subscriber(プロセス)の登録 (monitor/2を使ってダウンも検出)
-        {'DOWN', _, _, Pid, _}  ->                               loop(Subscribers -- [Pid])  % subscriber(プロセス)がダウン(or 正常終了)したので登録解除
+        {audio, _, _} = Msg -> notify(Msg, Subscribers), loop(Subscribers);          % audioデータがpublishされた => subscriberに配信
+        {video, _, _} = Msg -> notify(Msg, Subscribers), loop(Subscribers);          % videoデータがpublishされた => subscriberに配信
+        {subscribe, Pid}    -> monitor(process, Pid),    loop(Subscribers ++ [Pid]); % 新規subscriber(プロセス)の登録 (monitor/2を使ってダウンも検出)
+        {'DOWN',_,_,Pid,_}  ->                           loop(Subscribers -- [Pid])  % subscriber(プロセス)がダウン(or 正常終了)したので登録解除
     after 1000 ->
             case Subscribers of     % 一定期間、何のデータもpublishされず、かつsubscriberがいないなら、サーバプロセスを終了する
                 [] -> exit(normal);
